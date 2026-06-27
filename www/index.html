@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Crowd Runner 3D - النسخة المطورة</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #87CEEB;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+            user-select: none;
+        }
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 30px;
+            box-sizing: border-box;
+            z-index: 10;
+            pointer-events: none;
+        }
+        .game-badge {
+            background-color: #00aaff;
+            color: white;
+            padding: 10px 25px;
+            font-size: 24px;
+            font-weight: bold;
+            border-radius: 30px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            border: 3px solid white;
+        }
+        #level-badge { background-color: #e74c3c; color: white; }
+        
+        #jump-btn {
+            position: absolute;
+            bottom: 40px;
+            right: 40px;
+            background-color: #e67e22;
+            color: white;
+            border: 4px solid white;
+            padding: 20px;
+            font-size: 26px;
+            font-weight: bold;
+            border-radius: 50%;
+            width: 100px;
+            height: 100px;
+            box-shadow: 0 8px 15px rgba(0,0,0,0.4);
+            cursor: pointer;
+            z-index: 15;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            transition: transform 0.1s;
+        }
+        #jump-btn:active { transform: scale(0.9); background-color: #d35400; }
+
+        .modal {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            display: none;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            max-width: 400px;
+            width: 80%;
+        }
+        .modal h2 { margin: 0 0 20px 0; font-size: 36px; color: #2c3e50; }
+        .modal p { font-size: 20px; color: #7f8c8d; margin-bottom: 30px; }
+        .btn {
+            background-color: #2ecc71; color: white; border: none;
+            padding: 15px 40px; font-size: 22px; font-weight: bold;
+            border-radius: 30px; cursor: pointer;
+            box-shadow: 0 5px 15px rgba(46, 204, 113, 0.4);
+            margin: 5px 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .btn-reward { background-color: #f39c12; box-shadow: 0 5px 15px rgba(243, 156, 18, 0.4); }
+        #start-screen { display: flex; background-color: rgba(135, 206, 235, 0.9); }
+    </style>
+    <script src="three.min.js"></script>
+    <script src="cordova.js"></script>
+</head>
+<body>
+
+    <div id="ui-container">
+        <div class="game-badge" id="level-badge">المرحلة: <span id="level-txt">1</span></div>
+        <div class="game-badge">العدد: <span id="score-txt">1</span></div>
+    </div>
+
+    <button id="jump-btn" onclick="triggerJump()">قَفْزْ 🦘</button>
+
+    <div id="start-screen" class="modal">
+        <div class="modal-content">
+            <h2>Crowd Runner 3D</h2>
+            <p>المناشير الأرضية أصبحت عملاقة وطويلة! والأشواك الجانبية بدأت تدور! هل تستطيع الفوز?</p>
+            <button class="btn" onclick="startGame()">إبـدأ التحدي ⚡</button>
+        </div>
+    </div>
+
+    <div id="win-screen" class="modal">
+        <div class="modal-content">
+            <h2 style="color: #2ecc71;">المرحلة تمت بنجاح! 🎉</h2>
+            <p>رائع! المرحلة التالية ستكون أسرع والمناشير ستدور بجنون أكبر!</p>
+            <button class="btn" onclick="nextLevel()">دخول المرحلة التالية ➡️</button>
+        </div>
+    </div>
+
+    <div id="lose-screen" class="modal">
+        <div class="modal-content">
+            <h2>سحقتك الفخاخ! 💥</h2>
+            <p>الأعمدة الدوارة والمناشير العملاقة قضت على جيشك بالكامل.</p>
+            <button class="btn" style="background-color: #e74c3c;" onclick="restartGame()">إعادة المحاولة 🔄</button>
+            <button class="btn btn-reward" onclick="AdManager.showRewarded()">شاهد إعلان لإنقاذ الجيش 🎁</button>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // حاقن ومحرّك إعلانات يوينيتي (Unity Ads Engine)
+        // ==========================================
+        const UNITY_GAME_ID = "6131103"; // معرف اللعبة الخاص بك
+        let adsReady = false;
+
+        // الانتظار حتى يستعد الـ APK تماماً لتفعيل الإعلانات النيتف
+        document.addEventListener('deviceready', () => {
+            if (window.cordova && cordova.plugins && cordova.plugins.unityAds) {
+                cordova.plugins.unityAds.initialize(UNITY_GAME_ID, false, () => {
+                    adsReady = true;
+                    AdManager.showBanner(); // تشغيل إعلان البانر فور فتح اللعبة
+                }, (err) => console.error("Unity Ads Init Error:", err));
+            }
+        }, false);
+
+        const AdManager = {
+            showBanner: function() { if (adsReady) cordova.plugins.unityAds.showBanner("Banner_Android"); },
+            showInterstitial: function() { if (adsReady) cordova.plugins.unityAds.show("Interstitial_Android"); },
+            showRewarded: function() {
+                if (adsReady) {
+                    cordova.plugins.unityAds.showVideoAd("Rewarded_Android", (result) => {
+                        if (result === "completed" || result === "COMPLETED") {
+                            onRewardedAdCompleted();
+                        }
+                    });
+                } else {
+                    // للمعاينة على المتصفح (تشتغل المكافأة تلقائياً كـ Fallback)
+                    onRewardedAdCompleted();
+                }
+            }
+        };
+
+        // دالة المكافأة عند مشاهدة الإعلان كاملاً
+        function onRewardedAdCompleted() {
+            document.getElementById('lose-screen').style.display = 'none';
+            document.getElementById('jump-btn').style.display = 'flex';
+            gameState = "playing";
+            forwardSpeed = baseForwardSpeed;
+            // توليد 15 بطل جديد كدعم مكافأة الإعلان
+            for (let j = 0; j < 15; j++) { 
+                if (players.length < MAX_PLAYERS) createPlayer(Math.random() * 2 - 1, Math.random() * 2 - 1); 
+            }
+            document.getElementById('score-txt').innerText = players.length;
+            updateBadgeText();
+        }
+
+        // --- 1. نظام الصوت المدمج ---
+        let audioCtx;
+        function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+        
+        function playGateSound(isPositive) {
+            if (!audioCtx) return;
+            let osc = audioCtx.createOscillator(); let gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            if(isPositive) {
+                osc.frequency.setValueAtTime(450, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(900, audioCtx.currentTime + 0.1);
+            } else {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(80, audioCtx.currentTime + 0.25);
+            }
+            gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.25);
+        }
+
+        function playCheeringSound() {
+            if (!audioCtx) return;
+            let chord = [523.25, 659.25, 783.99, 1046.50];
+            chord.forEach((freq, idx) => {
+                let osc = audioCtx.createOscillator(); let gain = audioCtx.createGain();
+                osc.type = 'triangle'; osc.connect(gain); gain.connect(audioCtx.destination);
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime + idx*0.05);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime + idx*0.05);
+                gain.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + 1.5);
+                osc.start(audioCtx.currentTime + idx*0.05); osc.stop(audioCtx.currentTime + 1.5);
+            });
+        }
+
+        const levelThemes = [
+            { sky: 0x87CEEB, floor1: '#aad751', floor2: '#a2d149' },
+            { sky: 0x6c5ce7, floor1: '#2d3436', floor2: '#b2bec3' },
+            { sky: 0xd35400, floor1: '#2c3e50', floor2: '#e67e22' }
+        ];
+
+        // --- 2. إعدادات المحرك والمشهد ---
+        let currentLevel = 1;
+        let gameState = "start";
+        let levelLength = -260;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        const fog = new THREE.Fog(0x87CEEB, 40, 140);
+        scene.fog = fog;
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 400);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.6));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(20, 60, 20); dirLight.castShadow = true; scene.add(dirLight);
+
+        // تصميم الأرضية بنمط الشطرنج
+        const floorCanvas = document.createElement('canvas'); floorCanvas.width = 512; floorCanvas.height = 512;
+        const floorCtx = floorCanvas.getContext('2d');
+        const floorTex = new THREE.CanvasTexture(floorCanvas);
+        floorTex.wrapS = THREE.RepeatWrapping; floorTex.wrapT = THREE.RepeatWrapping; floorTex.repeat.set(6, 300);
+        
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(24, 1500), new THREE.MeshLambertMaterial({ map: floorTex }));
+        floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0, -700); floor.receiveShadow = true;
+        scene.add(floor);
+
+        // حواف المضمار باللونين الأصفر والأسود
+        const borderTexCanvas = document.createElement('canvas'); borderTexCanvas.width = 64; borderTexCanvas.height = 64;
+        const bCtx = borderTexCanvas.getContext('2d');
+        bCtx.fillStyle = '#f1c40f'; bCtx.fillRect(0,0,64,64); bCtx.fillStyle = '#000000';
+        bCtx.beginPath(); bCtx.moveTo(0,0); bCtx.lineTo(32,0); bCtx.lineTo(64,64); bCtx.lineTo(32,64); bCtx.fill();
+        const borderTex = new THREE.CanvasTexture(borderTexCanvas);
+        borderTex.wrapT = THREE.RepeatWrapping; borderTex.repeat.set(1, 400);
+
+        const leftBorder = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 1500), new THREE.MeshBasicMaterial({map: borderTex}));
+        leftBorder.rotation.x = -Math.PI / 2; leftBorder.position.set(-12, 0.05, -700); scene.add(leftBorder);
+        const rightBorder = leftBorder.clone(); rightBorder.position.x = 12; scene.add(rightBorder);
+
+        const finishGroup = new THREE.Group();
+        const finishMat = new THREE.MeshLambertMaterial({color: 0xf1c40f});
+        scene.add(finishGroup);
+
+        function updateLevelTheme() {
+            let themeIndex = (currentLevel - 1) % levelThemes.length;
+            let theme = levelThemes[themeIndex];
+            scene.background.setHex(theme.sky);
+            fog.color.setHex(theme.sky);
+
+            floorCtx.fillStyle = theme.floor1; floorCtx.fillRect(0, 0, 512, 512);
+            floorCtx.fillStyle = theme.floor2; floorCtx.fillRect(0, 0, 256, 256); floorCtx.fillRect(256, 256, 256, 256);
+            floorTex.needsUpdate = true;
+        }
+
+        // --- 3. نظام الحشد الـ 3D والعداد الطافي ---
+        let players = [];
+        let groupX = 0; let groupZ = 0;
+        let baseForwardSpeed = 0.26; let forwardSpeed = 0;
+        const MAX_PLAYERS = 100;
+
+        let jumpY = 0; let jumpVelocity = 0; let isJumping = false; const gravity = 0.015;
+
+        const bodyGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.8, 10);
+        const headGeo = new THREE.SphereGeometry(0.26, 10, 10);
+        const playerMat = new THREE.MeshLambertMaterial({ color: 0x00d2ff });
+
+        let badgeSprite;
+        function createCrowdBadge() {
+            const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 64;
+            const texture = new THREE.CanvasTexture(canvas);
+            const mat = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+            badgeSprite = new THREE.Sprite(mat);
+            badgeSprite.scale.set(3, 1.5, 1);
+            scene.add(badgeSprite);
+        }
+        createCrowdBadge();
+
+        function updateBadgeText() {
+            const canvas = badgeSprite.material.map.image;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 128, 64);
+            ctx.fillStyle = '#0070f0';
+            ctx.beginPath(); ctx.roundRect(14, 4, 100, 48, 15); ctx.fill();
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; ctx.stroke();
+            ctx.fillStyle = '#ffffff'; ctx.font = 'bold 32px Arial';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(players.length, 64, 28);
+            badgeSprite.material.map.needsUpdate = true;
+        }
+
+        function createPlayer(xOffset, zOffset) {
+            const pGroup = new THREE.Group();
+            const body = new THREE.Mesh(bodyGeo, playerMat); body.position.y = 0.4; body.castShadow = true;
+            const head = new THREE.Mesh(headGeo, playerMat); head.position.y = 0.95; head.castShadow = true;
+            pGroup.add(body); pGroup.add(head);
+            pGroup.position.set(groupX + xOffset, jumpY, groupZ + zOffset);
+            scene.add(pGroup); players.push(pGroup);
+            document.getElementById('score-txt').innerText = players.length;
+            updateBadgeText();
+        }
+
+        function removePlayers(count) {
+            let toRemove = Math.min(count, players.length);
+            for(let i=0; i<toRemove; i++) { let p = players.pop(); scene.remove(p); }
+            document.getElementById('score-txt').innerText = players.length;
+            updateBadgeText();
+            if(players.length <= 0) {
+                gameState = "lose"; forwardSpeed = 0;
+                document.getElementById('jump-btn').style.display = 'none';
+                document.getElementById('lose-screen').style.display = 'flex';
+            }
+        }
+
+        function triggerJump() { if (!isJumping && gameState === "playing") { isJumping = true; jumpVelocity = 0.33; } }
+        window.addEventListener('keydown', (e) => { if(e.code === "Space") triggerJump(); });
+
+        function updateCrowdFormation() {
+            const radiusStep = 0.42;
+            for (let i = 0; i < players.length; i++) {
+                const angle = i * 2.4; const radius = Math.sqrt(i) * radiusStep;
+                const targetX = groupX + Math.cos(angle) * radius;
+                const targetZ = groupZ + Math.sin(angle) * radius;
+                
+                players[i].position.x += (targetX - players[i].position.x) * 0.15;
+                players[i].position.z += (targetZ - players[i].position.z) * 0.15;
+
+                if (gameState === "playing") {
+                    let runAnimation = isJumping ? 0 : Math.abs(Math.sin(Date.now() * 0.016 + i)) * 0.25;
+                    players[i].position.y = jumpY + runAnimation;
+                    players[i].rotation.z = isJumping ? 0 : Math.sin(Date.now() * 0.016 + i) * 0.08;
+                } else { players[i].position.y = jumpY; players[i].rotation.z = 0; }
+            }
+            if(badgeSprite) { badgeSprite.position.set(groupX, jumpY + 3.2, groupZ - 1); }
+        }
+
+        // --- 4. نظام الفخاخ المتطورة والمناشير الدوارة ---
+        let gates = [];
+        let saws = [];
+        let spikeCones = [];
+        let spikedColumns = [];
+
+        function createGateTexture(text, bgColor) {
+            const c = document.createElement('canvas'); 
+            c.width = 512; 
+            c.height = 256;
+            const context = c.getContext('2d');
+            context.fillStyle = bgColor; context.fillRect(0, 0, 512, 256);
+            context.fillStyle = 'white'; context.font = 'bold 125px Arial';
+            context.textAlign = 'center'; 
+            context.textBaseline = 'middle'; 
+            context.fillText(text, 256, 145); 
+            return new THREE.CanvasTexture(c);
+        }
+
+        function createSawTrap(x, z) {
+            const sawGroup = new THREE.Group();
+            const bladeGeo = new THREE.CylinderGeometry(2.3, 2.3, 1.5, 18);
+            const bladeMat = new THREE.MeshLambertMaterial({color: 0xf1c40f});
+            const blade = new THREE.Mesh(bladeGeo, bladeMat);
+            blade.castShadow = true;
+            sawGroup.add(blade);
+
+            const centerGeo = new THREE.CylinderGeometry(1.4, 1.4, 1.7, 12);
+            const centerMat = new THREE.MeshLambertMaterial({color: 0xe74c3c});
+            const centerMesh = new THREE.Mesh(centerGeo, centerMat);
+            sawGroup.add(centerMesh);
+
+            sawGroup.position.set(x, 0.75, z);
+            scene.add(sawGroup);
+
+            let sideSpeed = 0.04 + (currentLevel * 0.015); 
+            saws.push({ 
+                mesh: sawGroup, 
+                dir: Math.random() > 0.5 ? 1 : -1, 
+                speed: sideSpeed,
+                rotSpeed: 0.12 + (currentLevel * 0.03)
+            });
+        }
+
+        function createSpikedColumn(x, z) {
+            const colGroup = new THREE.Group();
+            const baseGeo = new THREE.CylinderGeometry(1.2, 1.2, 7, 12);
+            const baseMat = new THREE.MeshLambertMaterial({color: 0xd35400});
+            const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+            baseMesh.position.y = 3.5;
+            baseMesh.castShadow = true;
+            colGroup.add(baseMesh);
+
+            const spikeGeo = new THREE.ConeGeometry(0.3, 0.9, 5);
+            spikeGeo.rotateX(Math.PI / 2);
+            const spikeMat = new THREE.MeshLambertMaterial({color: 0xf1c40f});
+
+            for(let y = 1; y < 7; y += 1.5) {
+                const ringGeo = new THREE.CylinderGeometry(1.3, 1.3, 0.2, 12);
+                const ringMat = new THREE.MeshBasicMaterial({color: 0x111111});
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.position.y = y;
+                colGroup.add(ring);
+
+                for(let a = 0; a < Math.PI * 2; a += Math.PI / 3) {
+                    const spike = new THREE.Mesh(spikeGeo, spikeMat);
+                    spike.position.set(Math.cos(a) * 1.2, y, Math.sin(a) * 1.2);
+                    spike.lookAt(new THREE.Vector3(Math.cos(a) * 5, y, Math.sin(a) * 5));
+                    colGroup.add(spike);
+                }
+            }
+            colGroup.position.set(x, 0, z);
+            scene.add(colGroup);
+            spikedColumns.push(colGroup);
+        }
+
+        function createFloorSpike(x, z) {
+            const coneGeo = new THREE.ConeGeometry(0.45, 1.6, 6);
+            const coneMat = new THREE.MeshLambertMaterial({color: 0xe84393});
+            const cone = new THREE.Mesh(coneGeo, coneMat);
+            cone.position.set(x, 0.8, z);
+            cone.castShadow = true;
+            scene.add(cone);
+            spikeCones.push(cone);
+        }
+
+        function createGateMesh(x, z, text, type, amount, color) {
+            const tex = createGateTexture(text, color);
+            const mesh = new THREE.Mesh(new THREE.PlaneGeometry(9, 5), new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+            mesh.position.set(x, 2.5, z);
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 5), new THREE.MeshLambertMaterial({color: 0xcccccc}));
+            pole.position.set(-4.5, 0, 0); mesh.add(pole);
+            const pole2 = pole.clone(); pole2.position.x = 4.5; mesh.add(pole2);
+            scene.add(mesh);
+            gates.push({ mesh: mesh, type: type, amount: amount, color: color, active: true });
+        }
+
+        function buildLevelTrack() {
+            gates.forEach(g => scene.remove(g.mesh)); gates.length = 0;
+            saws.forEach(s => scene.remove(s.mesh)); saws.length = 0;
+            spikeCones.forEach(c => scene.remove(c)); spikeCones.length = 0;
+            spikedColumns.forEach(col => scene.remove(col)); spikedColumns.length = 0;
+            
+            for (let z = -40; z > levelLength + 40; z -= 55) {
+                let posText = Math.random() > 0.5 ? "+" + (Math.floor(Math.random()*10)+5) : "x2";
+                let posType = posText.includes("+") ? "add" : "multiply";
+                let posAmt = posText.includes("+") ? Math.floor(Math.random()*10)+5 : 2;
+                createGateMesh(-5, z, posText, posType, posAmt, "#2ecc71");
+                createGateMesh(5, z, "-5", "subtract", 5, "#e74c3c");
+
+                createSawTrap(-4, z - 18);
+                createSawTrap(4, z - 26);
+
+                createSpikedColumn(-11, z - 34);
+                createSpikedColumn(11, z - 34);
+
+                for(let sx = -8; sx <= 8; sx += 2.5) {
+                    createFloorSpike(sx, z - 45);
+                }
+            }
+
+            finishGroup.clear();
+            for(let i=0; i<6; i++) {
+                let step = new THREE.Mesh(new THREE.BoxGeometry(24, 0.6, 3), finishMat);
+                step.position.set(0, i * 0.6 + 0.3, levelLength - (i * 3));
+                finishGroup.add(step);
+            }
+        }
+
+        function checkCollisions() {
+            for (let i = 0; i < gates.length; i++) {
+                let g = gates[i]; if (!g.active) continue;
+                if (Math.abs(groupZ - g.mesh.position.z) < 1.2 && Math.abs(groupX - g.mesh.position.x) < 4.5) {
+                    g.active = false; g.mesh.scale.set(0,0,0);
+                    let isPositive = g.color !== "#e74c3c";
+                    playGateSound(isPositive);
+                    if (isPositive) {
+                        let spawnCount = g.type === "add" ? g.amount : (players.length * g.amount) - players.length;
+                        for (let j = 0; j < spawnCount; j++) { if (players.length < MAX_PLAYERS) createPlayer(Math.random() * 2 - 1, Math.random() * 2 - 1); }
+                    } else { removePlayers(g.amount); }
+                }
+            }
+
+            for (let i = 0; i < saws.length; i++) {
+                let s = saws[i];
+                let dist = Math.sqrt(Math.pow(groupX - s.mesh.position.x, 2) + Math.pow(groupZ - s.mesh.position.z, 2));
+                if (dist < 2.6 && jumpY < 1.3) { 
+                    removePlayers(1);
+                    if (Math.random() < 0.1) playGateSound(false);
+                }
+            }
+
+            for (let i = 0; i < spikeCones.length; i++) {
+                let c = spikeCones[i];
+                if (Math.abs(groupZ - c.position.z) < 1.0 && Math.abs(groupX - c.position.x) < 1.2) {
+                    if (jumpY < 1.0) { removePlayers(2); c.position.y = -2; }
+                }
+            }
+
+            for (let i = 0; i < spikedColumns.length; i++) {
+                let col = spikedColumns[i];
+                if (Math.abs(groupZ - col.position.z) < 1.6 && Math.abs(groupX - col.position.x) < 2.4) {
+                    removePlayers(1);
+                }
+            }
+
+            if (groupZ <= levelLength) {
+                gameState = "win"; forwardSpeed = 0;
+                document.getElementById('jump-btn').style.display = 'none';
+                playCheeringSound();
+                document.getElementById('win-screen').style.display = 'flex';
+            }
+        }
+
+        // --- 5. نظام التحكم بالسحب اللمسي ---
+        let isDragging = false; let previousX = 0;
+        window.addEventListener('pointerdown', (e) => { 
+            if(gameState === "playing" && e.clientX < window.innerWidth - 140) { isDragging = true; previousX = e.clientX; } 
+        });
+        window.addEventListener('pointerup', () => { isDragging = false; });
+        window.addEventListener('pointermove', (e) => {
+            if (!isDragging || gameState !== "playing") return;
+            groupX += (e.clientX - previousX) * 0.024;
+            groupX = Math.max(-9.5, Math.min(9.5, groupX));
+            previousX = e.clientX;
+        });
+
+        // --- 6. إدارة مستويات اللعبة وحقن الإعلانات البينية والبانر ---
+        function startGame() { 
+            initAudio(); 
+            document.getElementById('start-screen').style.display = 'none'; 
+            document.getElementById('jump-btn').style.display = 'flex'; 
+            resetLevelVariables(); 
+            gameState = "playing"; 
+            AdManager.showBanner(); // تفعيل البانر عند اللعب
+        }
+        
+        function restartGame() { 
+            document.getElementById('lose-screen').style.display = 'none'; 
+            document.getElementById('jump-btn').style.display = 'flex'; 
+            resetLevelVariables(); 
+            gameState = "playing"; 
+            AdManager.showInterstitial(); // إعلان بيني عند إعادة المحاولة
+        }
+        
+        function nextLevel() {
+            currentLevel++;
+            document.getElementById('level-txt').innerText = currentLevel;
+            document.getElementById('win-screen').style.display = 'none';
+            document.getElementById('jump-btn').style.display = 'flex';
+            baseForwardSpeed += 0.05; 
+            levelLength -= 40;        
+            resetLevelVariables();
+            gameState = "playing";
+            AdManager.showInterstitial(); // إعلان بيني عند الفوز والانتقال لليفل جديد
+        }
+
+        function resetLevelVariables() {
+            groupX = 0; groupZ = 0; jumpY = 0; jumpVelocity = 0; isJumping = false;
+            forwardSpeed = baseForwardSpeed;
+            updateLevelTheme();
+            players.forEach(p => scene.remove(p)); players.length = 0;
+            createPlayer(0, 0);
+            buildLevelTrack();
+        }
+
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+
+        // --- 7. حلقة التحديث المستمر والتحريك ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (gameState === "playing") {
+                groupZ -= forwardSpeed;
+
+                if (isJumping) {
+                    jumpY += jumpVelocity;
+                    jumpVelocity -= gravity;
+                    if (jumpY <= 0) { jumpY = 0; isJumping = false; }
+                }
+
+                saws.forEach(s => {
+                    s.mesh.rotation.y += s.rotSpeed; 
+                    s.mesh.position.x += s.dir * s.speed;
+                    if (s.mesh.position.x > 9.5) { s.mesh.position.x = 9.5; s.dir = -1; }
+                    if (s.mesh.position.x < -9.5) { s.mesh.position.x = -9.5; s.dir = 1; }
+                });
+
+                spikedColumns.forEach(col => {
+                    col.rotation.y += 0.04 + (currentLevel * 0.015);
+                });
+
+                checkCollisions();
+            }
+
+            updateCrowdFormation();
+
+            camera.position.x += (groupX * 0.6 - camera.position.x) * 0.1;
+            const targetCamY = 9.0 + Math.sqrt(players.length) * 0.35 + (jumpY * 0.4);
+            camera.position.y += (targetCamY - camera.position.y) * 0.1;
+            camera.position.z = groupZ + 16;
+            camera.lookAt(camera.position.x, 1.2 + jumpY, groupZ - 7);
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
