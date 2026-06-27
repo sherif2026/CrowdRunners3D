@@ -21,3 +21,9 @@ jobs:
         run: |
           cordova platform add android
           cordova build android --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-release
+          path: platforms/android/app/build/outputs/apk/release/*.apk
