@@ -1,25 +1,43 @@
-<?xml version='1.0' encoding='utf-8'?>
-<widget id="com.aser.crowdrunners3d" version="1.1.0" xmlns="http://www.w3.org/ns/widgets" xmlns:android="http://schemas.android.com/apk/res/android" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+<?xml version="1.0" encoding="utf-8"?>
+<widget id="com.aser.crowdrunners3d"
+        version="1.1.0"
+        xmlns="http://www.w3.org/ns/widgets"
+        xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:cdv="http://cordova.apache.org/ns/1.0">
+
     <name>Crowd Runner 3D</name>
-    <description>Crowd Runner 3D game.</description>
-    <author email="developer@example.com" href="http://example.com">Developer</author>
-    
-    <content src="index.html" />
-    
-    <access origin="*" />
-    <allow-intent href="http://*/*" />
-    <allow-intent href="https://*/*" />
-    
+
+    <description>
+        Crowd Runner 3D game.
+    </description>
+
+    <author email="developer@example.com"
+            href="http://example.com">
+        Developer
+    </author>
+
+    <content src="index.html"/>
+
+    <access origin="*"/>
+
+    <allow-intent href="http://*/*"/>
+    <allow-intent href="https://*/*"/>
+
     <platform name="android">
         <config-file target="AndroidManifest.xml" parent="/*">
-            <uses-permission android:name="android.permission.INTERNET" />
-            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+            <uses-permission android:name="android.permission.INTERNET"/>
+            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
         </config-file>
     </platform>
-    
-    <preference name="Orientation" value="portrait" />
-    <preference name="Fullscreen" value="true" />
-    <preference name="WebViewBounce" value="false" />
 
-    <plugin name="cordova-plugin-unityads" />
+    <preference name="Orientation" value="portrait"/>
+    <preference name="Fullscreen" value="true"/>
+    <preference name="WebViewBounce" value="false"/>
+
+    <!-- أيقونة التطبيق -->
+    <icon src="res/icon.png"/>
+
+    <!-- Unity Ads Plugin -->
+    <plugin name="cordova-plugin-unityads"/>
+
 </widget>
